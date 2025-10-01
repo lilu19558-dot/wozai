@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我在背单词 - Typing Practice</title>
+<style>
+body {margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"思源黑体","Noto Sans SC","微软雅黑",sans-serif;background:linear-gradient(135deg,#f5f5f7,#ffffff);color:#1c1c1e;display:flex;flex-direction:column;align-items:center;min-height:100vh;}
+header {position:fixed;top:0;width:100%;height:80px;background:#ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,0.1);z-index:1000;cursor:pointer;}
+header h1 {margin:0;font-size:28px;letter-spacing:1px;}
+header h1 .brand {font-weight:700;color:#007bff;}
+header h1 .subtitle {font-weight:400;color:#555555;font-size:22px;margin-left:8px;}
+.container {margin-top:100px;display:flex;flex-direction:column;align-items:center;width:100%;max-width:720px;}
+.word-box {margin-top:40px;font-size:32px;font-weight:600;text-align:center;padding:24px;background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,0.08);min-width:300px;max-width:90%;}
+.word-cue {font-size:18px;margin-top:12px;color:#666;}
+input {margin-top:20px;font-size:22px;padding:12px;border-radius:12px;border:2px solid #ccc;width:300px;text-align:center;transition:all 0.25s;}
+input.correct {border-color:#34c759;background-color:#eaffea;}
+input.wrong {border-color:#ff3b30;background-color:#ffecec;}
+.stats {margin-top:20px;font-size:18px;color:#444;text-align:center;}
+.streak {margin-top:12px;font-size:20px;font-weight:600;color:#ff8000;text-align:center;}
+.timer {margin-top:6px;font-size:19px;font-weight:500;color:#007bff;text-align:center;}
+@media (min-width:768px){
+  .word-box{font-size:36px;} 
+  input{width:420px;font-size:22px;} 
+  .stats{font-size:20px;} 
+  .streak{font-size:22px;} 
+  .timer{font-size:21px;}
+}
+</style>
+</head>
+<body>
+
+<header id="brand">
+  <h1><span class="brand">我在</span> <span class="subtitle">背单词 (wozai)</span></h1>
+</header>
+
+<div class="container">
+  <div class="word-box">
+    <div id="word"></div>
+    <div class="word-cue" id="cue"></div>
+  </div>
+  <!-- 加入防作弊属性 -->
+  <input type="text" id="input" 
+         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+         inputmode="latin"
+         placeholder="输入单词，按回车提交..." />
+  <div class="streak" id="streak">当前连胜: 0</div>
+  <div class="timer" id="timer">已用时: 0.000 秒</div>
+  <div class="stats" id="stats">已完成: 0 / 0 | 正确: 0 | 错误: 0 | 正确率: 100%</div>
+</div>
+
+<script>
+// 点击品牌返回首页
+document.getElementById("brand").onclick = ()=>window.location.href="index.html";
+
+// 选择信息
+const selection = JSON.parse(localStorage.getItem("selection")||'{"version":"冀教版","grade":"七年级上","unit":"Unit1"}');
+
+// 单词列表
+const words = [
+  {word:"good",phonetic:"/ɡʊd/",type:"adj.",meaning:"好的"},
+  {word:"morning",phonetic:"/ˈmɔːnɪŋ/",type:"n.",meaning:"早晨；上午"},
+  {word:"please",phonetic:"/pliːz/",type:"int.",meaning:"请；请做某事"},
+  {word:"hi",phonetic:"/haɪ/",type:"int.",meaning:"嗨；你好"},
+  {word:"that",phonetic:"/ðæt/",type:"pron.",meaning:"那；那个"},
+  {word:"spell",phonetic:"/spel/",type:"v.",meaning:"拼写"},
+  {word:"name",phonetic:"/neɪm/",type:"n.",meaning:"名字"},
+  {word:"I",phonetic:"/aɪ/",type:"pron.",meaning:"我"},
+  {word:"you",phonetic:"/juː/",type:"pron.",meaning:"你"},
+  {word:"she",phonetic:"/ʃiː/",type:"pron.",meaning:"她"},
+  {word:"he",phonetic:"/hiː/",type:"pron.",meaning:"他"},
+  {word:"it",phonetic:"/ɪt/",type:"pron.",meaning:"它"},
+  {word:"teacher",phonetic:"/ˈtiːtʃər/",type:"n.",meaning:"教师"},
+  {word:"student",phonetic:"/ˈstuːdənt/",type:"n.",meaning:"学生"},
+  {word:"class",phonetic:"/klæs/",type:"n.",meaning:"班级；课"},
+  {word:"friend",phonetic:"/frend/",type:"n.",meaning:"朋友"},
+  {word:"hello",phonetic:"/həˈloʊ/",type:"int.",meaning:"你好"},
+  {word:"English",phonetic:"/ˈɪŋɡlɪʃ/",type:"n.",meaning:"英语"},
+  {word:"Chinese",phonetic:"/tʃaɪˈniːz/",type:"n.",meaning:"中文"},
+  {word:"yes",phonetic:"/jes/",type:"adv.",meaning:"是的"},
+  {word:"no",phonetic:"/noʊ/",type:"adv.",meaning:"不是；不"}
+];
+
+// Fisher-Yates 打乱
+function shuffle(array){
+  const arr=[...array];
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+let shuffled = shuffle(words);
+let currentIndex = 0;
+let completedCount = 0;
+let correctCount = 0;
+let errorCount = 0;
+let streakCount = 0;
+let maxStreak = 0; // ⭐ 最大连胜
+const totalWords = shuffled.length;
+
+// 记录每个单词状态: "unanswered", "errorOnce", "correct"
+const wordStates = shuffled.map(()=>"unanswered");
+
+const wordEl = document.getElementById("word");
+const cueEl = document.getElementById("cue");
+const inputEl = document.getElementById("input");
+const statsEl = document.getElementById("stats");
+const streakEl = document.getElementById("streak");
+const timerEl = document.getElementById("timer");
+
+let startTime = Date.now();
+
+// 控制是否朗读
+let canSpeak = true;
+
+// 当页面隐藏或离开时禁止朗读
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    canSpeak = false;
+    speechSynthesis.cancel();
+  } else {
+    canSpeak = true;
+  }
+});
+
+// 离开页面前取消朗读
+window.addEventListener("beforeunload", () => {
+  speechSynthesis.cancel();
+  canSpeak = false;
+});
+
+function speak(text){
+  if(!text || !canSpeak) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US'; 
+  u.rate = 1;
+  speechSynthesis.speak(u);
+}
+
+function updateStats(){
+  statsEl.textContent = `已完成: ${completedCount} / ${totalWords} | 正确: ${correctCount} | 错误: ${errorCount} | 正确率: ${totalWords ? Math.round(correctCount/totalWords*100) : 100}%`;
+  streakEl.textContent = `当前连胜: ${streakCount}`;
+}
+
+function showWord(){
+  if(currentIndex>=totalWords){
+    localStorage.setItem("typingResult", JSON.stringify({
+      time: (Date.now()-startTime),
+      total: completedCount,
+      correct: correctCount,
+      wrong: errorCount,
+      totalWords: totalWords,
+      accuracy: Math.round(correctCount/totalWords*100),
+      version: selection.version,
+      grade: selection.grade,
+      unit: selection.unit,
+      maxStreak: maxStreak   // ⭐ 保存最大连胜
+    }));
+    window.location.href="Jijiao-Grade7-Book1-Unit1-result.html";
+    return;
+  }
+  const current = shuffled[currentIndex];
+  wordEl.textContent = current.word;
+  cueEl.textContent = `${current.phonetic} | ${current.type} | ${current.meaning}`;
+  inputEl.value="";
+  inputEl.classList.remove("correct","wrong");
+  speak(current.word);
+  updateStats();
+}
+
+inputEl.addEventListener("keydown", (e)=>{
+  if(e.key!=="Enter") return;
+  const current = shuffled[currentIndex];
+  const value = inputEl.value.trim();
+  const state = wordStates[currentIndex];
+
+  if(value === current.word){
+    inputEl.classList.add("correct");
+    inputEl.classList.remove("wrong");
+    completedCount++;
+    if(state === "unanswered"){
+      correctCount++;
+    }
+    streakCount++; // 连胜增加
+    if(streakCount > maxStreak){   // ⭐ 更新最大连胜
+      maxStreak = streakCount;
+    }
+    wordStates[currentIndex] = "correct";
+    currentIndex++;
+    setTimeout(showWord, 200);
+  } else {
+    inputEl.classList.add("wrong");
+    inputEl.classList.remove("correct");
+    if(state === "unanswered"){
+      errorCount++;
+      wordStates[currentIndex] = "errorOnce";
+    }
+    streakCount = 0; // 错误后连胜归零
+  }
+
+  updateStats();
+});
+
+// ==================== 防作弊功能 ====================
+
+// 1. 禁止复制/粘贴/拖拽/剪切
+["paste","drop","copy","cut"].forEach(evt=>{
+  inputEl.addEventListener(evt, e => e.preventDefault());
+});
+
+// 2. 检测输入速度（防止联想或粘贴）
+let lastTime = Date.now();
+let lastLength = 0;
+inputEl.addEventListener("input", () => {
+  const now = Date.now();
+  const diff = now - lastTime;
+  const lenDiff = inputEl.value.length - lastLength;
+  if (lenDiff > 1 && diff < 150) {
+    inputEl.value = "";
+    alert("禁止使用输入法联想或粘贴，请逐个字母输入！");
+  }
+  lastTime = now;
+  lastLength = inputEl.value.length;
+});
+
+// 3. 按键过滤（只允许字母/退格/回车）
+inputEl.addEventListener("keydown", e => {
+  if (!/^[a-zA-Z]$/.test(e.key) && e.key !== "Backspace" && e.key !== "Enter") {
+    e.preventDefault();
+  }
+});
+
+// 计时器 (毫秒精度)
+function updateTimer(){
+  const elapsed = (Date.now() - startTime) / 1000;
+  timerEl.textContent = `已用时: ${elapsed.toFixed(3)} 秒`;
+}
+setInterval(updateTimer, 50);
+
+showWord();
+</script>
+</body>
+</html>
