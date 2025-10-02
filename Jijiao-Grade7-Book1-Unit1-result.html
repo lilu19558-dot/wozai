@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>结果 - 我在背单词</title>
+<style>
+  body {
+    margin:0;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "思源黑体", "Noto Sans SC", sans-serif;
+    background:linear-gradient(135deg,#fdfdfd,#f4f4f7);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; color:#1c1c1e; text-align:center;
+  }
+  header {
+    position:fixed; top:0; width:100%; height:80px; background:#ffffff;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 2px 10px rgba(0,0,0,0.1);
+    z-index:1000; cursor:pointer;
+  }
+  header h1 { margin:0; font-size:28px; letter-spacing:1px; text-align:center; }
+  header h1 .brand { font-weight:700; color:#007bff; }
+  header h1 .subtitle { font-weight:400; color:#555555; font-size:22px; margin-left:8px; }
+
+  #congrats {
+    font-size:8vw; margin-top:100px; font-weight:900; text-transform:uppercase;
+    background: linear-gradient(270deg, #ff4d4d, #ffcc00, #33cc33, #3399ff, #cc33ff, #ff66cc, #00e6e6);
+    background-size: 1000% 1000%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: rainbowGlow 6s linear infinite, glowPulse 2s ease-in-out infinite alternate;
+  }
+  @keyframes rainbowGlow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  @keyframes glowPulse {
+    0% { text-shadow: 0 0 8px rgba(255,255,255,0.6), 0 0 16px rgba(255,0,255,0.6); }
+    100% { text-shadow: 0 0 20px rgba(255,255,255,1), 0 0 40px rgba(0,255,255,1); }
+  }
+
+  p { font-size:4.5vw; margin:8px 0; }
+  #streak { margin-top:12px; font-size:20px; font-weight:600; color:#ff8000; text-align:center; }
+  #elapsed { margin-top:6px; font-size:19px; font-weight:500; color:#007bff; text-align:center; }
+  #localTime { font-size:3.8vw; color:#333; }
+  #typingStats { font-size:4.5vw; margin-top:10px; color:#444; }
+
+  .buttons { margin-top:30px; display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+  button {
+    padding:3vw 6vw; font-size:4.5vw; border-radius:12px;
+    border:none; background:#007aff; color:white; cursor:pointer; transition:0.3s;
+  }
+  button:hover { background:#0059c9; }
+
+  @media (min-width:768px) {
+    #congrats { font-size:56px; }
+    p { font-size:22px; }
+    #streak { font-size:20px; }
+    #elapsed { font-size:19px; }
+    #localTime { font-size:18px; }
+    #typingStats { font-size:20px; }
+    button { font-size:18px; padding:12px 24px; }
+  }
+
+  /* 预览层 */
+  #previewContainer {
+    display:none;
+    position:fixed;
+    top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.7);
+    justify-content:center;
+    align-items:center;
+    z-index:2000;
+    flex-direction:column;
+  }
+  #previewContainer img {
+    max-width:90%;
+    max-height:80%;
+    border-radius:12px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.5);
+  }
+  #closePreview {
+    margin-top:20px;
+    padding:10px 20px;
+    background:#ff4d4d;
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:16px;
+  }
+</style>
+</head>
+<body>
+
+<header onclick="goHome()">
+  <h1>
+    <span class="brand">我在</span>
+    <span class="subtitle">背单词 (wozai)</span>
+  </h1>
+</header>
+
+<h1 id="congrats"></h1>
+<p id="info"></p>
+<p id="streak"></p>
+<p id="elapsed"></p>
+<p id="localTime"></p>
+<p id="typingStats"></p>
+
+<div class="buttons">
+  <button onclick="nextUnit()">下一单元</button>
+  <button onclick="restartUnit()">再来一次</button>
+  <button onclick="shareWithLink()">🌍 分享成绩</button>
+  <button onclick="shareImage()">🖼 生成成绩单图片</button>
+</div>
+
+<!-- 预览容器 -->
+<div id="previewContainer">
+  <img id="previewImage" />
+  <button id="closePreview" onclick="document.getElementById('previewContainer').style.display='none'">关闭预览</button>
+</div>
+
+<!-- 隐藏的生成卡片 -->
+<div id="hiddenCard" style="position:absolute;left:-9999px;top:-9999px;"></div>
+
+<!-- 库 -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+<script>
+(function(){
+  const raw = localStorage.getItem("typingResult");
+  if(!raw){
+    window.location.href="Jijiao-Grade7-Book1-Unit1.html";
+    return;
+  }
+  const result = JSON.parse(raw);
+  localStorage.removeItem("typingResult");
+
+  const congratsWords = ["CONGRATULATIONS!","WELL DONE!","AMAZING!","FANTASTIC!","SUPERB!"];
+  const chosen = congratsWords[Math.floor(Math.random() * congratsWords.length)];
+
+  document.getElementById("congrats").textContent = chosen;
+  document.getElementById("info").textContent = `${result.version} | ${result.grade} | ${result.unit}`;
+  document.getElementById("streak").textContent = `最大连胜: ${result.maxStreak ?? 0}`;
+
+  function formatPracticeTime(t){
+    const n=Number(t);
+    if(!n) return "0.000";
+    return n>=1000 ? (n/1000).toFixed(3) : n.toFixed(3);
+  }
+  document.getElementById("elapsed").textContent = `用时: ${formatPracticeTime(result.time)} 秒`;
+
+  const now = new Date();
+  const localTime = `提交时间: ${now.toLocaleString("zh-CN",{hour12:false})}.${String(now.getMilliseconds()).padStart(3,"0")}`;
+  document.getElementById("localTime").textContent = localTime;
+
+  const totalWords = result.totalWords||0;
+  const correct = result.correct||0;
+  const wrong = result.wrong||0;
+  const accuracy = totalWords ? Math.round(correct/totalWords*100) : 0;
+  document.getElementById("typingStats").textContent =
+    `已完成: ${totalWords} | 正确: ${correct} | 错误: ${wrong} | 正确率: ${accuracy}%`;
+
+  // 彩带动画
+  setTimeout(()=>{confetti({
+    particleCount:250, spread:180, origin:{x:0.5,y:0.3},
+    colors:["#ff4d4d","#ffcc00","#33cc33","#3399ff","#cc33ff","#ff66cc","#00e6e6"],
+    scalar:1.4, ticks:240
+  });},200);
+
+  // 分享：带网站链接
+  window.shareWithLink = function(){
+    const text = `我在背单词完成了 ${result.grade} ${result.unit}！
+正确率 ${accuracy}%！
+${localTime}
+——
+🟢 戳这里继续挑战 → ${location.href}`;
+    if(navigator.share){
+      navigator.share({title:"我的成绩", text:text});
+    }else{
+      navigator.clipboard.writeText(text);
+      alert("已复制成绩，可自行粘贴分享！");
+    }
+  };
+
+  // 分享：生成成绩单图片
+  window.shareImage = function(){
+    const hidden = document.getElementById("hiddenCard");
+    hidden.innerHTML = ""; // 清空
+
+    const card = document.createElement("div");
+    card.style.width="600px";
+    card.style.height="850px";
+    card.style.background="linear-gradient(to bottom, #fff8e1, #ffe0b2)";
+    card.style.display="flex";
+    card.style.flexDirection="column";
+    card.style.alignItems="center";
+    card.style.justifyContent="center";
+    card.style.fontFamily="sans-serif";
+    card.style.border="10px solid gold";
+    card.style.borderRadius="20px";
+    card.style.padding="30px";
+    card.style.textAlign="center";
+
+    const title = document.createElement("h2");
+    title.innerHTML = `<span style="color:#007bff;font-weight:700;">我在</span>背单词`;
+    title.style.fontSize="34px";
+    title.style.marginBottom="20px";
+    card.appendChild(title);
+
+    const info = document.createElement("div");
+    info.innerHTML = `
+      <p style="font-size:28px;font-weight:700;color:#222;">${result.grade} ${result.unit}</p>
+      <p style="font-size:30px;font-weight:900;color:#d2691e;">正确率：${accuracy}%</p>
+      <p style="font-size:22px;color:#444;">完成：${totalWords} | 正确：${correct} | 错误：${wrong}</p>
+      <p style="font-size:16px;color:#555;margin-top:12px;">${localTime}</p>
+    `;
+    card.appendChild(info);
+
+    const footer = document.createElement("div");
+    footer.innerText="📱 扫码加入挑战";
+    footer.style.fontSize="16px";
+    footer.style.marginTop="40px";
+    footer.style.color="#333";
+    footer.style.fontWeight="600";
+    card.appendChild(footer);
+
+    const qrCanvas = document.createElement("canvas");
+    card.appendChild(qrCanvas);
+
+    hidden.appendChild(card);
+
+    QRCode.toCanvas(qrCanvas, location.href, {width:120, margin:1}, function(){
+      html2canvas(card).then(canvas=>{
+        document.getElementById("previewImage").src = canvas.toDataURL("image/png");
+        document.getElementById("previewContainer").style.display="flex";
+      });
+    });
+  };
+
+  // 跳转按钮
+  window.nextUnit=function(){ window.location.href="Jijiao-Grade7-Book1-Unit2.html"; }
+  window.restartUnit=function(){ window.location.href="Jijiao-Grade7-Book1-Unit1.html"; }
+  window.goHome=function(){ window.location.href="index.html"; }
+})();
+</script>
+</body>
+</html>
