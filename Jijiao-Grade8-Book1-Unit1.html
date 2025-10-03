@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我在背单词 - Typing Practice</title>
+<style>
+body {margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"思源黑体","Noto Sans SC","微软雅黑",sans-serif;background:linear-gradient(135deg,#f5f5f7,#ffffff);color:#1c1c1e;display:flex;flex-direction:column;align-items:center;min-height:100vh;}
+header {position:fixed;top:0;width:100%;height:80px;background:#ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,0.1);z-index:1000;cursor:pointer;}
+header h1 {margin:0;font-size:28px;letter-spacing:1px;}
+header h1 .brand {font-weight:700;color:#007bff;}
+header h1 .subtitle {font-weight:400;color:#555555;font-size:22px;margin-left:8px;}
+.container {margin-top:120px;display:flex;flex-direction:column;align-items:center;width:100%;max-width:720px;}
+.unit-title {font-size:22px;font-weight:500;color:#555555;margin-bottom:10px;text-align:center;}
+.word-box {margin-top:20px;font-size:32px;font-weight:600;text-align:center;padding:24px;background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,0.08);min-width:300px;max-width:90%;}
+.word-cue {font-size:18px;margin-top:12px;color:#666;}
+input {margin-top:20px;font-size:22px;padding:12px;border-radius:12px;border:2px solid #ccc;width:300px;text-align:center;transition:all 0.25s;}
+input.correct {border-color:#34c759;background-color:#eaffea;}
+input.wrong {border-color:#ff3b30;background-color:#ffecec;}
+.stats {margin-top:20px;font-size:18px;color:#444;text-align:center;}
+.streak {margin-top:12px;font-size:20px;font-weight:600;color:#ff8000;text-align:center;}
+.timer {margin-top:6px;font-size:19px;font-weight:500;color:#007bff;text-align:center;}
+@media (min-width:768px){
+  .word-box{font-size:36px;} 
+  input{width:420px;font-size:22px;} 
+  .stats{font-size:20px;} 
+  .streak{font-size:22px;} 
+  .timer{font-size:21px;}
+  .unit-title{font-size:24px;}
+}
+</style>
+</head>
+<body>
+
+<header id="brand">
+  <h1><span class="brand">我在</span> <span class="subtitle">背单词 (wozai)</span></h1>
+</header>
+
+<div class="container">
+  <div class="unit-title">冀教版 八年级上 Unit1</div>
+  <div class="word-box">
+    <div id="word"></div>
+    <div class="word-cue" id="cue"></div>
+  </div>
+  <input type="text" id="input" 
+         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+         inputmode="latin"
+         placeholder="输入单词，按回车提交..." />
+  <div class="streak" id="streak">当前连胜: 0</div>
+  <div class="timer" id="timer">已用时: 0.000 秒</div>
+  <div class="stats" id="stats">已完成: 0 / 0 | 正确: 0 | 错误: 0 | 正确率: 100%</div>
+</div>
+
+<script>
+// 点击品牌返回首页
+document.getElementById("brand").onclick = ()=>window.location.href="index.html";
+
+// 选择信息 (冀教版 八年级上 Unit1)
+const selection = JSON.parse(localStorage.getItem("selection")||'{"version":"冀教版","grade":"八年级上","unit":"Unit1"}');
+
+// 单词列表（冀教版 八年级上 Unit1）
+const words = [
+  {word:"Sandra",phonetic:"/ˈsændrə/",type:"n.",meaning:"桑德拉（人名）"},
+  {word:"Cox",phonetic:"/kɒks/",type:"n.",meaning:"考克斯（姓氏）"},
+  {word:"physics",phonetic:"/ˈfɪzɪks/",type:"n.",meaning:"物理学"},
+  {word:"recent",phonetic:"/ˈriːsənt/",type:"adj.",meaning:"最近的"},
+  {word:"perform",phonetic:"/pəˈfɔːm/",type:"v.",meaning:"表演；演出"},
+  {word:"advise",phonetic:"/ədˈvaɪz/",type:"v.",meaning:"劝告；建议"},
+  {word:"agree",phonetic:"/əˈɡriː/",type:"v.",meaning:"同意"},
+  {word:"glue",phonetic:"/ɡluː/",type:"n./v.",meaning:"胶水；用胶粘"},
+  {word:"immediately",phonetic:"/ɪˈmiːdiətli/",type:"adv.",meaning:"立即地"},
+  {word:"glad",phonetic:"/ɡlæd/",type:"adj.",meaning:"高兴的"},
+  {word:"ahead",phonetic:"/əˈhɛd/",type:"adv./prep.",meaning:"在前面；前方的"},
+  {word:"pancake",phonetic:"/ˈpænkeɪk/",type:"n.",meaning:"薄饼"},
+  {word:"lemon",phonetic:"/ˈlɛmən/",type:"n.",meaning:"柠檬"},
+  {word:"pizza",phonetic:"/ˈpiːtsə/",type:"n.",meaning:"披萨（饼）"},
+  {word:"hate",phonetic:"/heɪt/",type:"v.",meaning:"憎恨；讨厌"},
+  {word:"either",phonetic:"/ˈaɪðər/ /ˈiːðər/",type:"adv./conj.",meaning:"也（用于否定句）；要么…要么…"},
+  {word:"comb",phonetic:"/koʊm/",type:"n./v.",meaning:"梳子；梳（头发）"},
+  {word:"Patrick",phonetic:"/ˈpætrɪk/",type:"n.",meaning:"帕特里克（人名）"},
+  {word:"Grant",phonetic:"/ɡrænt/",type:"n.",meaning:"格兰特（人名）"},
+  {word:"pea",phonetic:"/piː/",type:"n.",meaning:"豌豆"},
+  {word:"pod",phonetic:"/pɒd/",type:"n.",meaning:"豆荚"},
+  {word:"copy",phonetic:"/ˈkɒpi/",type:"v./n.",meaning:"复制；副本"},
+  {word:"surprise",phonetic:"/səˈpraɪz/",type:"v./n.",meaning:"使惊奇；惊喜"},
+  {word:"angrily",phonetic:"/ˈæŋɡrɪli/",type:"adv.",meaning:"愤怒地"},
+  {word:"lend",phonetic:"/lɛnd/",type:"v.",meaning:"借出"},
+  {word:"cheat",phonetic:"/tʃiːt/",type:"v./n.",meaning:"作弊；欺骗"},
+  {word:"following",phonetic:"/ˈfɒləʊɪŋ/",type:"adj./prep.",meaning:"接下来的；在…之后"},
+  {word:"gym",phonetic:"/dʒɪm/",type:"n.",meaning:"体育馆；健身房"},
+  {word:"embarrassed",phonetic:"/ɪmˈbærəst/",type:"adj.",meaning:"尴尬的"},
+  {word:"enemy",phonetic:"/ˈɛnəmi/",type:"n.",meaning:"敌人"},
+  {word:"deal",phonetic:"/diːl/",type:"v./n.",meaning:"处理；交易"},
+  {word:"someone",phonetic:"/ˈsʌmwʌn/",type:"pron.",meaning:"某人"},
+  {word:"England",phonetic:"/ˈɪŋɡlənd/",type:"n.",meaning:"英格兰"},
+  {word:"knowledgeable",phonetic:"/ˈnɒlɪdʒəbəl/",type:"adj.",meaning:"博学的；有知识的"},
+  {word:"discuss",phonetic:"/dɪˈskʌs/",type:"v.",meaning:"讨论"},
+  {word:"patient",phonetic:"/ˈpeɪʃənt/",type:"adj./n.",meaning:"有耐心的；病人"},
+  {word:"piano",phonetic:"/piˈænəʊ/",type:"n.",meaning:"钢琴"},
+  {word:"jeans",phonetic:"/dʒiːnz/",type:"n.",meaning:"牛仔裤"},
+  {word:"pleasure",phonetic:"/ˈplɛʒər/",type:"n.",meaning:"愉快；满足"},
+  {word:"local",phonetic:"/ˈloʊkəl/",type:"adj./n.",meaning:"当地的；当地人"}
+];
+
+// Fisher-Yates 打乱
+function shuffle(array){
+  const arr=[...array];
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+let shuffled = shuffle(words);
+let currentIndex = 0;
+let completedCount = 0;
+let correctCount = 0;
+let errorCount = 0;
+let streakCount = 0;
+let maxStreak = 0; 
+const totalWords = shuffled.length;
+
+const wordStates = shuffled.map(()=>"unanswered");
+
+const wordEl = document.getElementById("word");
+const cueEl = document.getElementById("cue");
+const inputEl = document.getElementById("input");
+const statsEl = document.getElementById("stats");
+const streakEl = document.getElementById("streak");
+const timerEl = document.getElementById("timer");
+
+let startTime = Date.now();
+
+// 控制朗读
+let canSpeak = true;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    canSpeak = false;
+    speechSynthesis.cancel();
+  } else {
+    canSpeak = true;
+  }
+});
+window.addEventListener("beforeunload", () => {
+  speechSynthesis.cancel();
+  canSpeak = false;
+});
+function speak(text){
+  if(!text || !canSpeak) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US'; 
+  u.rate = 1;
+  speechSynthesis.speak(u);
+}
+
+function updateStats(){
+  statsEl.textContent = `已完成: ${completedCount} / ${totalWords} | 正确: ${correctCount} | 错误: ${errorCount} | 正确率: ${totalWords ? Math.round(correctCount/totalWords*100) : 100}%`;
+  streakEl.textContent = `当前连胜: ${streakCount}`;
+}
+
+function showWord(){
+  if(currentIndex>=totalWords){
+    localStorage.setItem("typingResult", JSON.stringify({
+      time: (Date.now()-startTime),
+      total: completedCount,
+      correct: correctCount,
+      wrong: errorCount,
+      totalWords: totalWords,
+      accuracy: Math.round(correctCount/totalWords*100),
+      version: selection.version,
+      grade: selection.grade,
+      unit: selection.unit,
+      maxStreak: maxStreak
+    }));
+    window.location.href="Jijiao-Grade8-Book1-Unit1-result.html";
+    return;
+  }
+  const current = shuffled[currentIndex];
+  wordEl.textContent = current.word;
+  cueEl.textContent = `${current.phonetic} | ${current.type} | ${current.meaning}`;
+  inputEl.value="";
+  inputEl.classList.remove("correct","wrong");
+  speak(current.word);
+  updateStats();
+}
+
+inputEl.addEventListener("keydown", (e)=>{
+  if(e.key!=="Enter") return;
+  const current = shuffled[currentIndex];
+  const value = inputEl.value.trim();
+  const state = wordStates[currentIndex];
+
+  if(value === current.word){
+    inputEl.classList.add("correct");
+    inputEl.classList.remove("wrong");
+    completedCount++;
+    if(state === "unanswered"){
+      correctCount++;
+    }
+    streakCount++;
+    if(streakCount > maxStreak){   
+      maxStreak = streakCount;
+    }
+    wordStates[currentIndex] = "correct";
+    currentIndex++;
+    setTimeout(showWord, 200);
+  } else {
+    inputEl.classList.add("wrong");
+    inputEl.classList.remove("correct");
+    if(state === "unanswered"){
+      errorCount++;
+      wordStates[currentIndex] = "errorOnce";
+    }
+    streakCount = 0;
+  }
+  updateStats();
+});
+
+// 防作弊
+["paste","drop","copy","cut"].forEach(evt=>{
+  inputEl.addEventListener(evt, e => e.preventDefault());
+});
+let lastTime = Date.now();
+let lastLength = 0;
+inputEl.addEventListener("input", () => {
+  const now = Date.now();
+  const diff = now - lastTime;
+  const lenDiff = inputEl.value.length - lastLength;
+  if (lenDiff > 1 && diff < 150) {
+    inputEl.value = "";
+    alert("禁止使用输入法联想或粘贴，请逐个字母输入！");
+  }
+  lastTime = now;
+  lastLength = inputEl.value.length;
+});
+inputEl.addEventListener("keydown", e => {
+  if (!/^[a-zA-Z]$/.test(e.key) && e.key !== "Backspace" && e.key !== "Enter") {
+    e.preventDefault();
+  }
+});
+
+// 计时器
+function updateTimer(){
+  const elapsed = (Date.now() - startTime) / 1000;
+  timerEl.textContent = `已用时: ${elapsed.toFixed(3)} 秒`;
+}
+setInterval(updateTimer, 50);
+
+showWord();
+</script>
+</body>
+</html>
